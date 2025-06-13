@@ -1,4 +1,11 @@
-from data_provider.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, Dataset_M4, Dataset_3D
+from data_provider.data_loader import (
+    Dataset_ETT_hour,
+    Dataset_ETT_minute,
+    Dataset_Custom,
+    Dataset_M4,
+    Dataset_3D,
+    Dataset_3D_LayerPred,
+)
 from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
@@ -25,7 +32,8 @@ data_dict = {
     'Weather': Dataset_Custom,
     'm4': Dataset_M4,
     'retraction': Dataset_Custom,
-    '3D': Dataset_3D  # 标记需要特殊处理的数据集
+    '3D': Dataset_3D,  # 默认3D数据集
+    '3DLP': Dataset_3D_LayerPred  # 基于层的预测数据集
 }
 
 def data_provider(args, flag):
@@ -35,7 +43,8 @@ def data_provider(args, flag):
 
     # 动态配置collate_fn
     collate_fn = None
-    if args.data == '3D':  # 仅为3D数据集指定自定义collate
+    if args.data in ['3D', '3DLP']:
+        # 3D 系列数据集需要自定义collate
         collate_fn = custom_collate_3d
 
     # 通用参数配置
@@ -61,7 +70,7 @@ def data_provider(args, flag):
             seasonal_patterns=args.seasonal_patterns
         )
         common_params['drop_last'] = False  # M4特殊处理
-    elif args.data == '3D':
+    elif args.data in ['3D', '3DLP']:
         # 3D数据集需要传递额外参数
         data_set = Data(
             root_path=args.root_path,

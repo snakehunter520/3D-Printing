@@ -49,13 +49,13 @@ d_ff=256
 comment='TimeLLM-3D'
 
 python -u run_main_V1.py \
-  --task_name anomaly_classification \
+  --task_name layer_prediction \
   --is_training 1 \
   --root_path ./dataset/温度原因-1/ \
   --data_path all.csv \
   --model_id 3D_512_96 \
   --model $model_name \
-  --data 3D \
+  --data 3DLP \
   --features M \
   --freq s \
   --seq_len 256 \
