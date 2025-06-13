@@ -513,6 +513,43 @@ class Dataset_3D(Dataset):
         return self.scalers[task_id][feature_type].inverse_transform(data)
 
 
+class Dataset_3D_LayerPred(Dataset_3D):
+    """Use current layer features to predict the anomaly label of the next layer."""
+
+    def __init__(self, *args, **kwargs):
+        """Pass through to ``Dataset_3D`` to keep the same initialization API."""
+        super().__init__(*args, **kwargs)
+
+    def __len__(self):
+        # the last layer has no next-layer label
+        return max(0, len(self.layer_indices) - 1)
+
+    def __getitem__(self, index):
+        start, end = self.layer_indices[index]
+        next_start, next_end = self.layer_indices[index + 1]
+        metadata = self.layer_metadata[index]
+
+        # current layer features
+        features = self.data[start:end, :self.ot_idx]
+        time_feat = self.data_stamp[start:end]
+
+        # next layer label (assume label constant within layer)
+        next_ot = self.data[next_start:next_end, self.ot_idx]
+        label = next_ot[0]
+
+        status = (
+            f"Task:{metadata['task_id']} Layer:{metadata['layer_num']}"
+            f"->Next:{self.layer_metadata[index + 1]['layer_num']}"
+        )
+
+        return (
+            torch.FloatTensor(features),
+            torch.tensor([label], dtype=torch.long),
+            torch.FloatTensor(time_feat),
+            status,
+        )
+
+
 class Dataset_3D_V1(Dataset):
     """
     root_path是数据集所在的根目录，flag表示数据集的类型（训练、测试或验证），size是序列的长度，

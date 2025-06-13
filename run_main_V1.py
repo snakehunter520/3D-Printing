@@ -27,8 +27,13 @@ parser.add_argument('--class_names', type=str, default='adhesion,clogging,bed_te
 
 # 修改基础参数
 # basic config
-parser.add_argument('--task_name', type=str, required=True, choices=['long_term_forecast', 'anomaly_classification'],
-                    help='task name, options:[long_term_forecast, short_term_forecast, imputation, classification, anomaly_detection]')
+parser.add_argument(
+    '--task_name',
+    type=str,
+    required=True,
+    choices=['long_term_forecast', 'anomaly_classification', 'layer_prediction'],
+    help='task name, options:[long_term_forecast, layer_prediction, anomaly_classification]'
+)
 parser.add_argument('--is_training', type=int, required=True, default=1, help='status')
 parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
 parser.add_argument('--model_comment', type=str, required=True, default='none', help='prefix when saving test results')
@@ -137,7 +142,7 @@ def classification_validate(model, loader, criterion, device):
 if args.is_training:
     for ii in range(args.itr):
         # 根据任务类型调整输出维度
-        if args.task_name == 'anomaly_classification':
+        if args.task_name in ['anomaly_classification', 'layer_prediction']:
             args.c_out = args.num_classes
             args.pred_len = 1  # 分类任务预测长度固定为1
 
@@ -177,8 +182,11 @@ if args.is_training:
         args.content = load_content(args)
 
         train_steps = len(train_loader)
-        early_stopping = EarlyStopping(patience=args.patience, verbose=True, 
-                                    mode='max' if args.task_name == 'anomaly_classification' else 'min')
+        early_stopping = EarlyStopping(
+            patience=args.patience,
+            verbose=True,
+            mode='max' if args.task_name in ['anomaly_classification', 'layer_prediction'] else 'min'
+        )
 
         # 优化器设置
         trained_parameters = [p for p in model.parameters() if p.requires_grad]
@@ -192,7 +200,7 @@ if args.is_training:
                                         max_lr=args.learning_rate)
 
         # 损失函数根据任务类型选择
-        if args.task_name == 'anomaly_classification':
+        if args.task_name in ['anomaly_classification', 'layer_prediction']:
             criterion = nn.CrossEntropyLoss()
         else:
             criterion = nn.MSELoss()
@@ -218,7 +226,7 @@ if args.is_training:
                 batch_x_mark = batch_x_mark.float().to(device)
                 
                 # 分类任务数据处理
-                if args.task_name == 'anomaly_classification':
+                if args.task_name in ['anomaly_classification', 'layer_prediction']:
                     batch_y = batch_y.long().flatten().to(device)  # 转换为长整型并展平
                     dec_inp = None  # 分类任务不需要decoder输入
                 else:
@@ -232,10 +240,10 @@ if args.is_training:
                     outputs = model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     
                     # 分类任务输出处理
-                    if args.task_name == 'anomaly_classification':
+                    if args.task_name in ['anomaly_classification', 'layer_prediction']:
                         print(outputs.shape)
                         print(batch_y.shape)
-                        
+
                         loss = criterion(outputs, batch_y)
                     else:
                         f_dim = -1 if args.features == 'MS' else 0
@@ -252,7 +260,7 @@ if args.is_training:
                 train_loss.append(loss.item())
                 
                 # 分类任务统计准确率
-                if args.task_name == 'anomaly_classification':
+                if args.task_name in ['anomaly_classification', 'layer_prediction']:
                     preds = outputs.argmax(dim=1)
                     correct += (preds == batch_y).sum().item()
                     total += batch_y.size(0)
@@ -263,7 +271,7 @@ if args.is_training:
                     left_time = speed * ((args.train_epochs - epoch) * train_steps - i)
                     
                     log_msg = "\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item())
-                    if args.task_name == 'anomaly_classification':
+                    if args.task_name in ['anomaly_classification', 'layer_prediction']:
                         log_msg += f" | acc: {correct/total:.2%}"
                     print(log_msg)
 
@@ -271,7 +279,7 @@ if args.is_training:
                     epoch_time = time.time()
 
             # 验证阶段
-            if args.task_name == 'anomaly_classification':
+            if args.task_name in ['anomaly_classification', 'layer_prediction']:
                 val_loss, val_metrics = classification_validate(model, vali_loader, criterion, device)
                 log_msg = (
                     f"Epoch: {epoch + 1} | Train Loss: {np.average(train_loss):.4f} | Acc: {correct/total:.2%} | "
@@ -336,7 +344,7 @@ else:
     model.to(device)
     print(next(model.parameters()).device)
     # 测试逻辑（根据任务类型分支）
-    if args.task_name == 'anomaly_classification':
+    if args.task_name in ['anomaly_classification', 'layer_prediction']:
         test_loss, test_metrics = classification_validate(model, test_loader, nn.CrossEntropyLoss(), device)
         print(f"\nFinal Test Results - Acc: {test_metrics['accuracy']:.2%} | F1: {test_metrics['f1']:.4f}")
     else:
